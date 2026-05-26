@@ -1,0 +1,11 @@
+# Copy to backend.conf (git-ignored) and fill in your values.
+# Run: terraform init -backend-config=backend.conf
+
+resource_group_name  = "aks-tf-state-rg"
+storage_account_name = "REPLACE_WITH_OUTPUT_FROM_BOOTSTRAP"
+container_name       = "tfstate"
+key                  = "aks-prod.terraform.tfstate"
+
+# Local dev: comment out use_oidc and rely on `az login` ambient credentials.
+# CI/CD: uncomment use_oidc and set ARM_CLIENT_ID / ARM_TENANT_ID env vars.
+# use_oidc = true
