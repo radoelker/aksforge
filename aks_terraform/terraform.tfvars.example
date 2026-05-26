@@ -1,0 +1,15 @@
+subscription_id      = "<subscriptionID>"
+location             = "eastus"
+resource_group_name  = "aks-tf-rainer-rg"
+managed_cluster_name = "aks-prod-tf-rainer"
+
+# az ad signed-in-user show --query id -o tsv
+deployer_object_id      = ""
+deployer_principal_type = "User"
+
+# Prompted securely — do not commit actual values
+# admin_username     = "azureuser"
+# ssh_rsa_public_key = "ssh-rsa AAAA..."
+
+# Increment if a soft-deleted vault with the same name blocks reuse
+kv_suffix = "001"
