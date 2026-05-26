@@ -1,0 +1,38 @@
+# manual_aks
+aks_current/aks-rainer.json
+
+# bicep
+
+# Terraform
+aks_terraform/.terraform/
+aks_terraform/*.tfstate
+aks_terraform/*.tfstate.backup
+aks_terraform/.terraform.lock.hcl
+aks_terraform/terraform.tfvars
+aks_terraform/backend.conf
+
+
+# Node
+expensy_backend/node_modules/
+expensy_backend/dist
+expensy_backend/build/
+expensy_backend/.env
+expensy_backend/.env.local
+expensy_backend/.env.*.local
+expensy_backend/npm-debug.log*
+expensy_backend/.vscode/
+
+# Next.js
+expensy_frontend/.next/
+expensy_frontend/out/
+expensy_frontend/.vscode/
+expensy_frontend/dist/
+expensy_frontend/build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets — never commit these
+*.pem
+*.key

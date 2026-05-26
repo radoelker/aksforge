@@ -1,0 +1,26 @@
+# Sensitive local files — never commit these
+terraform.tfvars
+backend.conf
+*.tfvars.local
+
+# Terraform state — stored remotely, never locally
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+
+# Terraform working directories
+.terraform/
+.terraform.lock.hcl    # Commit this for reproducible builds — remove if desired
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Override files (local experiments)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Generated plan files (may contain secrets)
+*.tfplan
