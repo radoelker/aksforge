@@ -36,3 +36,4 @@ Thumbs.db
 # Secrets — never commit these
 *.pem
 *.key
+current_aks*.json

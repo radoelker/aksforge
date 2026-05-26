@@ -1,202 +1,215 @@
-# Deploy AKS with Key Vault via Bicep
+# AKS Bicep — Azure Infrastructure
 
-Provisions a production-ready AKS cluster under a dedicated resource group,
-with secrets managed in a separate Key Vault resource group. The deployment
-spans subscription scope and is split across three Bicep files.
+Provisions the complete Azure infrastructure for the Expensy platform using a modular Bicep deployment at subscription scope. A single `az deployment sub create` call creates all resource groups, networking, compute, data services, private endpoints, and role assignments in the correct order.
 
----
-
-## File Structure
-
-```
-.
-├── main.bicep          # Entry point — subscription scope orchestrator
-├── keyvault.bicep      # Key Vault + secrets + RBAC (resource group scope)
-└── aks.bicep           # AKS cluster, agent pool, and maintenance windows (resource group scope)
-```
+> **ARM64 note:** The AKS node pools use `Standard_D4pds_v5` (Ampere Altra, ARM64). Every Docker image and Helm chart used in this cluster must support `linux/arm64`.
 
 ---
 
-## File Purposes
+## Module Dependency Graph
 
-### `main.bicep`
-Runs at `targetScope = 'subscription'`. Responsible for:
-- Creating two resource groups (`aks-bicep-rainer-rg` and `aks-bicep-rainer-rg-kv`)
-- Calling `keyvault.bicep` as a module scoped to the KV resource group
-- Calling `aks.bicep` as a module scoped to the AKS resource group
-- Passing secrets from Key Vault into AKS via `kv.getSecret()`
-- Surfacing all deployment outputs
+```mermaid
+graph TD
+    main(["main.bicep<br/><i>subscription scope</i>"])
 
-### `keyvault.bicep`
-Runs at resource group scope. Responsible for:
-- Creating the Key Vault with soft-delete (9 days), purge protection, and RBAC authorisation
-- Storing two secrets: `aks-admin-username` and `aks-ssh-public-key`
-- Assigning the deployer the **Key Vault Secrets Officer** role so secrets can be written and read during deployment
+    main --> vnet["vnet.bicep"]
+    main --> acr["acr.bicep"]
+    main --> aks["aks.bicep"]
+    main --> cosmos["cosmos.bicep"]
+    main --> redis["redis.bicep"]
+    main --> roleAcr["role-acr-pull.bicep"]
+    main --> roleKv["role-kv-secrets-user.bicep"]
+    main --> kvSec["kv-secrets.bicep"]
 
-### `aks.bicep`
-Runs at resource group scope. Responsible for:
-- Creating the managed cluster (`SystemAssigned` identity, free tier, Kubernetes 1.34)
-- Network profile: Azure CNI overlay, pod CIDR `10.244.0.0/16`, service CIDR `10.0.0.0/16`
-- Agent pool: 2–5 nodes, `Standard_D4pds_v5`, ephemeral OS disk, availability zones 1–2–3, autoscaler enabled
-- Auto-upgrade maintenance window: weekly Sunday, 8 h, patch channel
-- Node OS upgrade maintenance window: weekly Sunday, 8 h, NodeImage channel
-- Security: OIDC issuer, workload identity, image cleaner enabled
+    vnet -->|"subnet IDs"| acr
+    vnet -->|"subnet IDs"| aks
+    vnet -->|"subnet IDs"| cosmos
+    vnet -->|"subnet IDs"| redis
+
+    aks -->|"kubelet objectId"| roleAcr
+    aks -->|"kubelet objectId"| roleKv
+
+    cosmos -->|"connection string @secure"| kvSec
+    redis  -->|"connection string @secure"| kvSec
+```
 
 ---
 
-## Information Flow
+## Files
 
-```
-main.bicep  (subscription)
-│
-│  @secure() params entered at CLI prompt
-│  ┌─────────────────────────────────────┐
-│  │ adminUsername, sshRSAPublicKey      │
-│  └──────────────┬──────────────────────┘
-│                 │
-├── kvModule ─────▼──────────────────────────────────────────────────────┐
-│   keyvault.bicep                                                        │
-│   Creates Key Vault → stores secrets → assigns Secrets Officer to       │
-│   deployerObjectId                                                      │
-└── aksModule ───────────────────────────────────────────────────────────┘
-    aks.bicep
-    Receives secrets via kv.getSecret() — values never appear in logs
-    Creates cluster → agent pool → maintenance windows
-```
-
-> `kv.getSecret()` is the only mechanism that passes a Key Vault secret
-> directly into a module parameter without exposing it in the deployment
-> history. It requires the target parameter to carry `@secure()`.
+| File | Scope | Purpose |
+|------|-------|---------|
+| `main.bicep` | Subscription | Entry point. Creates resource groups, calls all modules, wires outputs to inputs. Contains the deploy command in the header comment. |
+| `modules/vnet.bicep` | `aks-bicep-rainer-rg` | Virtual Network `10.1.0.0/16` with two subnets: `snet-aks-nodes` (`10.1.0.0/22`) for AKS node NICs and `snet-private-endpoints` (`10.1.4.0/24`) for all private endpoints. |
+| `modules/aks.bicep` | `aks-bicep-rainer-rg` | AKS managed cluster. Azure CNI Overlay, `networkPolicy:azure`, system node pool (fixed ARM64), spot user node pool with eviction taint. OIDC issuer and Workload Identity enabled. |
+| `modules/acr.bicep` | `aks-bicep-rainer-rg` | Azure Container Registry, Premium SKU. Public access disabled. Private endpoint + private DNS zone `privatelink.azurecr.io`. |
+| `modules/cosmos.bicep` | `aks-bicep-rainer-rg-data` | Cosmos DB for MongoDB API v7.0. Standard provisioned throughput, continuous 7-day backup. Public access disabled. Private endpoint + private DNS zone `privatelink.mongo.cosmos.azure.com`. Outputs connection string `@secure`. |
+| `modules/redis.bicep` | `aks-bicep-rainer-rg-data` | Azure Cache for Redis Premium P1. TLS-only (port 6380). Public access disabled. Private endpoint + private DNS zone `privatelink.redis.cache.windows.net`. Outputs connection string `@secure`. |
+| `modules/kv-secrets.bicep` | `aks-bicep-rainer-rg-kv` | Writes Cosmos DB and Redis connection strings into the existing Key Vault. Assigns `Key Vault Secrets Officer` to the deployer principal for the duration of the write. |
+| `modules/role-acr-pull.bicep` | `aks-bicep-rainer-rg` | Assigns the built-in `AcrPull` role to the AKS kubelet identity on the ACR resource. Exists as a separate module because subscription-scoped Bicep cannot declare role assignments against resources in specific resource groups inline (BCP139). |
+| `modules/role-kv-secrets-user.bicep` | `aks-bicep-rainer-rg-kv` | Assigns `Key Vault Secrets Officer` to the AKS kubelet identity on the Key Vault. Used by External Secrets Operator at runtime to sync secrets into Kubernetes. Same BCP139 reason as above. |
 
 ---
 
-## Parameters
+## Deployed Architecture
 
-| Parameter | Where set | Description |
-|---|---|---|
-| `location` | default `eastus` | Azure region for all resources |
-| `resourceGroupName` | default `aks-bicep-rainer-rg` | AKS resource group name |
-| `managedCluserName` | default `aks-prod-bicep-rainer` | AKS cluster name |
-| `deployerObjectId` | CLI / pipeline | Object ID of the deploying user or SP |
-| `deployerPrincipalType` | default `User` | `User` locally, `ServicePrincipal` in pipelines |
-| `adminUsername` | prompted (secure) | Linux admin user on cluster nodes |
-| `sshRSAPublicKey` | prompted (secure) | SSH public key for node access |
+```mermaid
+graph TB
+    subgraph sub["Azure Subscription"]
+        subgraph rgCluster["aks-bicep-rainer-rg"]
+            subgraph vnet["VNet  10.1.0.0/16"]
+                nodeSubnet["snet-aks-nodes<br/>10.1.0.0/22"]
+                peSubnet["snet-private-endpoints<br/>10.1.4.0/24"]
+            end
+            AKS["AKS  aks-prod-bicep-rainer<br/>Azure CNI Overlay<br/>networkPolicy: azure"]
+            ACR["ACR  Premium<br/>Public access: disabled"]
+            peACR(["PE: ACR"])
+        end
+
+        subgraph rgKv["aks-bicep-rainer-rg-kv"]
+            KV["Key Vault<br/>kv-aks-prod-bicep-003<br/>RBAC mode"]
+        end
+
+        subgraph rgData["aks-bicep-rainer-rg-data"]
+            COSMOS["Cosmos DB<br/>MongoDB API v7.0<br/>Public access: disabled"]
+            REDIS["Redis Premium P1<br/>TLS only<br/>Public access: disabled"]
+            peCosmos(["PE: Cosmos"])
+            peRedis(["PE: Redis"])
+        end
+    end
+
+    nodeSubnet --> AKS
+    peSubnet --> peACR --> ACR
+    peSubnet --> peCosmos --> COSMOS
+    peSubnet --> peRedis --> REDIS
+    AKS -->|"AcrPull (MI)"| ACR
+    AKS -->|"Secrets Officer (MI)"| KV
+    COSMOS -->|"conn string"| KV
+    REDIS -->|"conn string"| KV
+```
+
+---
+
+## Identity & Secret Dataflow
+
+Shows how credentials flow from Azure into running pods — no secrets in Git, no secrets in CI.
+
+```mermaid
+sequenceDiagram
+    participant Bicep
+    participant CosmosDB
+    participant Redis
+    participant KeyVault
+    participant ESO as External Secrets Operator<br/>(in AKS)
+    participant K8s as Kubernetes Secret
+    participant Pod
+
+    Note over Bicep,KeyVault: Deployment time
+    Bicep->>CosmosDB: provision account
+    CosmosDB-->>Bicep: connection string (@secure)
+    Bicep->>Redis: provision cache
+    Redis-->>Bicep: connection string (@secure)
+    Bicep->>KeyVault: write cosmos-mongodb-connection-string
+    Bicep->>KeyVault: write redis-connection-string
+    Bicep->>KeyVault: assign Secrets Officer → kubelet identity
+
+    Note over ESO,Pod: Runtime (Step 3 — ESO setup)
+    ESO->>KeyVault: read secret (Workload Identity / kubelet MI)
+    KeyVault-->>ESO: secret value
+    ESO->>K8s: create/update Kubernetes Secret
+    Pod->>K8s: mount secret as env var
+```
 
 ---
 
 ## Prerequisites
 
-```bash
-# Install or update Bicep
-az bicep install && az bicep upgrade
+| Tool | Minimum version | Check |
+|------|----------------|-------|
+| Azure CLI | 2.57+ | `az --version` |
+| Bicep CLI | 0.26+ | `az bicep version` |
+| kubectl | 1.28+ | `kubectl version --client` |
+| An active Azure subscription | — | `az account show` |
 
-# Log in and set the target subscription
-az login
-az account set --subscription <subscription-id>
+The deploying principal needs the following on the subscription:
+- `Contributor` (to create resource groups and resources)
+- `User Access Administrator` (to create role assignments)
 
-# Retrieve your object ID (needed for Key Vault RBAC)
-az ad signed-in-user show --query id -o tsv
-```
+Or `Owner` covers both.
 
 ---
 
 ## Deploy
 
 ```bash
-# Local developer (principalType defaults to 'User')
+# First time only — if an existing AKS cluster is present without a custom
+# VNet, delete it first (vnetSubnetId cannot be changed in-place):
+az aks delete \
+  --name aks-prod-bicep-rainer \
+  --resource-group aks-bicep-rainer-rg \
+  --yes --no-wait
+
+# Deploy everything
 az deployment sub create \
   --location eastus \
-  --template-file main.bicep \
-  --parameters deployerObjectId=$(az ad signed-in-user show --query id -o tsv) \
-               adminUsername='azureuser' \
-               sshRSAPublicKey="$(cat ~/.ssh/id_rsa.pub)"
-
-# CI/CD pipeline (service principal)
-az deployment sub create \
-  --location eastus \
-  --template-file main.bicep \
-  --parameters deployerObjectId=$SP_OBJECT_ID \
-               deployerPrincipalType='ServicePrincipal' \
-               adminUsername='azureuser' \
-               sshRSAPublicKey="$(cat ~/.ssh/id_rsa.pub)"
+  --template-file aks_bicep/main.bicep \
+  --parameters \
+      location=eastus \
+      suffix=rainer \
+      adminUsername=azureuser \
+      kubernetesVersion=1.34.7 \
+      deployerObjectId=$(az ad signed-in-user show --query id -o tsv) \
+      sshRSAPublicKey="$(cat ~/.ssh/id_rsa.pub)" \
+  > ./current_aks.json 2>&1
 ```
 
-Validate without deploying:
-```bash
-az deployment sub what-if \
-  --location eastus \
-  --template-file main.bicep \
-  --parameters deployerObjectId=<oid> adminUsername='azureuser' \
-               sshRSAPublicKey="$(cat ~/.ssh/id_rsa.pub)"
-```
+Expected duration: **15–20 minutes** (Redis Premium P1 is the long pole at 8–12 min).
 
 ---
 
-## Outputs
-
-The following values are emitted by `main.bicep` at the end of a successful deployment.
-
-| Output | Description |
-|---|---|
-| `kvName` | Key Vault name |
-| `kvUri` | Key Vault URI (`https://<name>.vault.azure.net/`) |
-| `clusterFqdn` | API server DNS — use in kubeconfig and pipelines |
-| `oidcIssuerUrl` | OIDC issuer URL — required for workload identity federation |
-| `nodeResourceGroup` | Auto-created `MC_` resource group containing nodes and load balancer |
-| `controlPlaneManagedIdentityPrincipalId` | Principal ID for RBAC assignments (e.g. AcrPull) |
-| `resourceGroupId` | Full resource ID of the AKS resource group |
-
-### Query outputs after deployment
+## Post-Deploy Verification
 
 ```bash
-# Show all outputs from the last deployment
-az deployment sub show \
-  --name main \
-  --query properties.outputs \
-  -o table
-```
-
-### Additional post-deploy queries
-
-The load balancer public IP and node VMs are created inside the `MC_` resource
-group after the cluster is running — they are not available as deployment outputs.
-
-```bash
-# Outbound public IP (egress)
-az network public-ip list \
-  --resource-group MC_aks-bicep-rainer-rg_aks-prod-bicep-rainer_eastus \
-  --query "[].{name:name, ip:ipAddress}" \
-  -o table
-
-# Merge kubeconfig and verify cluster access
-az aks get-credentials \
+# AKS cluster state and network policy
+az aks show \
+  --name aks-prod-bicep-rainer \
   --resource-group aks-bicep-rainer-rg \
-  --name aks-prod-bicep-rainer
+  --query "{state:provisioningState, k8sVersion:kubernetesVersion, networkPolicy:networkProfile.networkPolicy}" \
+  -o table
+
+# Both node pools present and correct
+az aks nodepool list \
+  --cluster-name aks-prod-bicep-rainer \
+  --resource-group aks-bicep-rainer-rg \
+  --query "[].{name:name, mode:mode, vmSize:vmSize, state:provisioningState, spot:scaleSetPriority}" \
+  -o table
+
+# Data resources provisioned
+az resource list \
+  --resource-group aks-bicep-rainer-rg-data \
+  --query "[].{name:name, type:type, state:provisioningState}" \
+  -o table
+
+# Secrets in Key Vault
+az keyvault secret list \
+  --vault-name kv-aks-prod-bicep-003 \
+  --query "[].{name:name, enabled:attributes.enabled}" \
+  -o table
+
+# Connect kubectl and check nodes
+az aks get-credentials \
+  --name aks-prod-bicep-rainer \
+  --resource-group aks-bicep-rainer-rg
 
 kubectl get nodes -o wide
-
-# Confirm OIDC issuer (required before creating federated credentials)
-az aks show \
-  --resource-group aks-bicep-rainer-rg \
-  --name aks-prod-bicep-rainer \
-  --query oidcIssuerProfile.issuerUrl \
-  -o tsv
 ```
 
 ---
 
-## Tear Down
+## Known Limitations
 
-```bash
-# Remove AKS resource group (MC_ group is deleted automatically)
-az group delete --name aks-bicep-rainer-rg --yes
-
-# Key Vault resource group — note: purge protection means the vault
-# enters a soft-deleted state and cannot be permanently removed
-# until the retention window (9 days) expires.
-az group delete --name aks-bicep-rainer-rg-kv --yes
-
-# Purge the vault immediately if retention window is not yet elapsed
-# (only possible if enablePurgeProtection was set to false)
-az keyvault purge --name kv-aks-prod-bicep-r-prod --location eastus
-```
+| Item | Detail |
+|------|--------|
+| Cosmos DB zone redundancy | Disabled — East US has no available quota for zonal Cosmos DB accounts at time of deployment. Request via https://aka.ms/cosmosdbquota and re-enable `isZoneRedundant: true` in `cosmos.bicep` when approved. |
+| Key Vault role (least privilege) | Kubelet identity has `Key Vault Secrets Officer` (read + write). Can be downgraded to `Key Vault Secrets User` (read-only) once ESO read access is confirmed sufficient. Role ID: `4633458b-17de-408a-b874-0445c86b69e0`. |
+| `what-if` shallow validation | `az deployment sub create --what-if` does not catch all API-level errors (e.g. spot pool constraints, capacity issues). Treat it as a diff tool, not a validator. |
