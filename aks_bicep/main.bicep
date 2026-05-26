@@ -1,88 +1,202 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// main.bicep  —  subscription-scoped deployment
+//
+// Deployment order (Bicep resolves dependencies automatically):
+//   1. Resource groups
+//   2. VNet  (snet-aks-nodes, snet-private-endpoints)
+//   3. ACR   (Premium, private endpoint)
+//   4. AKS   (Azure CNI Overlay, networkPolicy:azure, custom VNet)
+//   5. Cosmos DB (MongoDB API, private endpoint)
+//   6. Redis (Premium P1, private endpoint)
+//   7. Role assignments (AcrPull + KV Secrets User → kubelet identity)
+//   8. KV secrets (cosmos + redis connection strings)
+//
+// BEFORE RUNNING: delete the existing AKS cluster (vnetSubnetId cannot be
+// changed in-place).
+//
+//   az aks delete \
+//     --name aks-prod-bicep-rainer \
+//     --resource-group aks-bicep-rainer-rg \
+//     --yes --no-wait
+//
+// DEPLOY:
+//   az deployment sub create \
+//     --location eastus \
+//     --template-file aks_bicep/main.bicep \
+//     --parameters \
+//         location=eastus \
+//         suffix=rainer \
+//         adminUsername=azureuser \
+//         kubernetesVersion=1.34.7 \
+//         deployerObjectId=$(az ad signed-in-user show --query id -o tsv) \
+//         sshRSAPublicKey="$(cat ~/.ssh/id_rsa.pub)" \
+//     > ./current_aks.json
+// ─────────────────────────────────────────────────────────────────────────────
+
 targetScope = 'subscription'
 
+// ── Parameters ────────────────────────────────────────────────────────────────
+
+@description('Azure region for all resources.')
 param location string = 'eastus'
-param resourceGroupName string = 'aks-bicep-rainer-rg'
-param managedCluserName string = 'aks-prod-bicep-rainer'
-param deployerObjectId string      // az ad signed-in-user show --query id -o tsv
-param deployerPrincipalType string = 'User'
 
+@description('Short identifier appended to resource names.')
+param suffix string = 'rainer'
+
+@description('Object ID of the principal running this deployment (for KV role assignment).')
+param deployerObjectId string
+
+@description('SSH public key for AKS Linux nodes.')
 @secure()
-param adminUsername string         // prompted at deploy time — no default
+param sshRSAPublicKey string
 
-@secure()
-param sshRSAPublicKey string       // prompted at deploy time — no default
+@description('Admin username for AKS Linux nodes.')
+param adminUsername string = 'azureuser'
 
-@description('Increment (002, 003 …) if a soft-deleted vault with the same name blocks reuse. enablePurgeProtection prevents purging before the retention window expires, so a name change is the only immediate workaround.')
-param kvSuffix string = '001'
+@description('Kubernetes version to deploy.')
+param kubernetesVersion string = '1.34.7'
 
-// Key Vault names: max 24 chars, globally unique, alphanumeric + hyphens only
-// Result: kv-aks-prod-bicep-001 = 21 chars
-var kvName = 'kv-${take(managedCluserName, 14)}-${kvSuffix}'
-var kvResourceGroupName = '${resourceGroupName}-kv'
+// ── Derived names ─────────────────────────────────────────────────────────────
 
+var clusterName = 'aks-prod-bicep-${suffix}'
+var kvName      = 'kv-aks-prod-bicep-003'   // Existing KV — name unchanged.
+// ACR name: alphanumeric, globally unique, 5–50 chars.
+// uniqueString produces a deterministic 13-char hash of subscription + suffix.
+var acrName     = 'acr${uniqueString(subscription().id, suffix)}'
+var cosmosName  = 'cosmos-aks-prod-${suffix}'
+var redisName   = 'redis-aks-prod-${suffix}'
 
-// ─── Resource Groups ──────────────────────────────────────────────────────────
-resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
-  name: resourceGroupName
+// ── Resource Groups ───────────────────────────────────────────────────────────
+
+resource rgCluster 'Microsoft.Resources/resourceGroups@2023-07-01' = {
+  name: 'aks-bicep-${suffix}-rg'
   location: location
 }
 
-resource rgKv 'Microsoft.Resources/resourceGroups@2021-04-01' = {
-  name: kvResourceGroupName
+resource rgKv 'Microsoft.Resources/resourceGroups@2023-07-01' = {
+  name: 'aks-bicep-${suffix}-rg-kv'
   location: location
 }
 
-// ─── Key Vault Module ─────────────────────────────────────────────────────────
-module kvModule 'keyvault.bicep' = {
-  name: 'kvDeployment'
-  scope: rgKv
+resource rgData 'Microsoft.Resources/resourceGroups@2023-07-01' = {
+  name: 'aks-bicep-${suffix}-rg-data'
+  location: location
+}
+
+// ── VNet ──────────────────────────────────────────────────────────────────────
+
+module vnet 'modules/vnet.bicep' = {
+  scope: rgCluster
+  name: 'vnetDeployment'
   params: {
     location: location
+    suffix: suffix
+  }
+}
+
+// ── ACR ───────────────────────────────────────────────────────────────────────
+
+module acr 'modules/acr.bicep' = {
+  scope: rgCluster
+  name: 'acrDeployment'
+  params: {
+    location: location
+    acrName: acrName
+    privateEndpointSubnetId: vnet.outputs.privateEndpointSubnetId
+    vnetId: vnet.outputs.vnetId
+  }
+}
+
+// ── AKS ───────────────────────────────────────────────────────────────────────
+
+module aks 'modules/aks.bicep' = {
+  scope: rgCluster
+  name: 'aksDeployment'
+  params: {
+    location: location
+    clusterName: clusterName
+    aksNodeSubnetId: vnet.outputs.aksNodeSubnetId
+    adminUsername: adminUsername
+    sshRSAPublicKey: sshRSAPublicKey
+    kubernetesVersion: kubernetesVersion
+  }
+}
+
+// ── Cosmos DB ─────────────────────────────────────────────────────────────────
+
+module cosmos 'modules/cosmos.bicep' = {
+  scope: rgData
+  name: 'cosmosDeployment'
+  params: {
+    location: location
+    accountName: cosmosName
+    privateEndpointSubnetId: vnet.outputs.privateEndpointSubnetId
+    vnetId: vnet.outputs.vnetId
+  }
+}
+
+// ── Redis ─────────────────────────────────────────────────────────────────────
+
+module redis 'modules/redis.bicep' = {
+  scope: rgData
+  name: 'redisDeployment'
+  params: {
+    location: location
+    redisName: redisName
+    privateEndpointSubnetId: vnet.outputs.privateEndpointSubnetId
+    vnetId: vnet.outputs.vnetId
+  }
+}
+
+// ── Role assignment: kubelet identity → AcrPull on ACR ───────────────────────
+// Inline resource declarations at subscription scope cannot target resources
+// in specific RGs (BCP139), so these live in dedicated modules.
+
+module acrPullRole 'modules/role-acr-pull.bicep' = {
+  scope: rgCluster
+  name: 'acrPullRoleDeployment'
+  params: {
+    acrName: acrName
+    kubeletObjectId: aks.outputs.kubeletIdentityObjectId
+  }
+}
+
+// ── Role assignment: kubelet identity → Key Vault Secrets User ───────────────
+
+module kvSecretsUserRole 'modules/role-kv-secrets-user.bicep' = {
+  scope: rgKv
+  name: 'kvSecretsUserRoleDeployment'
+  params: {
+    kvName: kvName
+    kubeletObjectId: aks.outputs.kubeletIdentityObjectId
+  }
+}
+
+// ── KV Secrets ────────────────────────────────────────────────────────────────
+
+module kvSecrets 'modules/kv-secrets.bicep' = {
+  scope: rgKv
+  name: 'kvSecretsDeployment'
+  params: {
     kvName: kvName
     deployerObjectId: deployerObjectId
-    deployerPrincipalType: deployerPrincipalType
+    cosmosConnectionString: cosmos.outputs.connectionString
+    redisConnectionString: redis.outputs.connectionString
     adminUsername: adminUsername
-    sshRSAPublicKey: sshRSAPublicKey
+    sshPublicKey: sshRSAPublicKey
   }
 }
 
-// ─── AKS Module ───────────────────────────────────────────────────────────────
-// Why no getSecret() here:
-// getSecret() is for reading from a KV that PRE-EXISTS before this deployment.
-// ARM resolves existing-resource references at planning time — before any module
-// runs — so kv.getSecret() on a KV created in the same deployment always fails
-// at 'create' (what-if passes because it simulates the will-exist state).
-// adminUsername and sshRSAPublicKey are already @secure() params flowing into
-// this template, so passing them directly is both correct and safe.
-// The KV still stores them for ESO and manual access in later steps.
-module aksModule 'aks.bicep' = {
-  name: 'aksDeployment'
-  scope: rg
-  dependsOn: [kvModule]
-  params: {
-    location: location
-    resourceGroupName: resourceGroupName
-    managedCluserName: managedCluserName
-    adminUsername: adminUsername
-    sshRSAPublicKey: sshRSAPublicKey
-  }
-}
+// ── Outputs ───────────────────────────────────────────────────────────────────
 
-// ─── Outputs kvModule ─────────────────────────────────────────────────────────
-output kvName string = kvModule.outputs.kvName
-output kvUri string = kvModule.outputs.kvUri
-// FIX: was kvModule.keyVault.id — modules only expose outputs, not internal resources
-output kvResourceId string = kvModule.outputs.kvResourceId
-
-// ─── Outputs aksModule ────────────────────────────────────────────────────────
-output clusterName string = aksModule.outputs.clusterName
-output clusterFqdn string = aksModule.outputs.clusterFqdn
-output oidcIssuerUrl string = aksModule.outputs.oidcIssuerUrl
-output nodeResourceGroup string = aksModule.outputs.nodeResourceGroup
-output controlPlaneManagedIdentityPrincipalId string = aksModule.outputs.controlPlaneManagedIdentityPrincipalId
-output kubeletIdentityClientId string = aksModule.outputs.kubeletIdentityClientId
-output kubernetesVersion string = aksModule.outputs.kubernetesVersion
-output agentPoolProfiles array = aksModule.outputs.agentPoolProfiles
-
-// ─── Outputs Resource Group ───────────────────────────────────────────────────
-output resourceGroupId string = rg.id
+output clusterName string = clusterName
+output clusterFqdn string = aks.outputs.clusterFqdn
+output oidcIssuerUrl string = aks.outputs.oidcIssuerUrl
+output kubeletIdentityClientId string = aks.outputs.kubeletIdentityClientId
+output acrLoginServer string = acr.outputs.acrLoginServer
+output kvName string = kvName
+// environment().suffixes.keyvaultDns = '.vault.azure.net' (no hardcoded URL)
+output kvUri string = 'https://${kvName}${environment().suffixes.keyvaultDns}/'
+output cosmosAccountName string = cosmos.outputs.cosmosAccountName
+output redisHostName string = redis.outputs.redisHostName
+output nodeResourceGroup string = aks.outputs.nodeResourceGroup
