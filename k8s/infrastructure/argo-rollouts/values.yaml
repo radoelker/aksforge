@@ -1,0 +1,33 @@
+# Argo Rollouts — Helm values
+# Chart: argo/argo-rollouts
+# Pinned version: 2.38.1
+#
+# Must be installed after ArgoCD (Rollouts integrates with ArgoCD via annotation).
+# The canary AnalysisTemplate (Step 8/11) references Prometheus, which is
+# installed in Step 13. Production rollouts will not have analysis gates
+# until kube-prometheus-stack is up.
+
+controller:
+  replicas: 2
+  nodeSelector:
+    kubernetes.azure.com/agentpool: agentpool
+  tolerations: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+dashboard:
+  enabled: true
+  nodeSelector:
+    kubernetes.azure.com/agentpool: agentpool
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

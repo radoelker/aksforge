@@ -1,0 +1,63 @@
+---
+# Alloy ConfigMap — log collection and forwarding configuration.
+# Applied before the Alloy Helm install so the DaemonSet finds the ConfigMap on startup.
+#
+# Pipeline:
+#   kubernetes pod logs → discovery.kubernetes → loki.source.kubernetes
+#                                                     ↓
+#                                              loki.write (→ Loki gateway)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-config
+  namespace: monitoring
+data:
+  config.alloy: |
+    // --- Kubernetes log discovery ---
+    discovery.kubernetes "pods" {
+      role = "pod"
+    }
+
+    // Relabel: keep only pods with annotation prometheus.io/scrape != "false"
+    discovery.relabel "pods" {
+      targets = discovery.kubernetes.pods.targets
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+        action        = "drop"
+        regex         = "false"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_container_name"]
+        target_label  = "container"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app"]
+        target_label  = "app"
+      }
+    }
+
+    // --- Log collection ---
+    loki.source.kubernetes "pods" {
+      targets    = discovery.relabel.pods.output
+      forward_to = [loki.write.default.receiver]
+    }
+
+    // --- Loki write endpoint ---
+    loki.write "default" {
+      endpoint {
+        url = "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
+      }
+    }

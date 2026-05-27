@@ -1,0 +1,70 @@
+# Loki — Helm values
+# Chart: grafana/loki
+# Pinned version: 6.25.1
+# Namespace: monitoring
+#
+# Mode: single-binary (simplest path for single-cluster, non-high-scale setup).
+# Storage: filesystem on PVC pinned to fixed node pool.
+# For production scale-out, migrate to simple-scalable + Azure Blob Storage.
+
+deploymentMode: SingleBinary
+
+loki:
+  commonConfig:
+    replication_factor: 1
+
+  storage:
+    type: filesystem
+
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+  auth_enabled: false
+
+singleBinary:
+  replicas: 1
+
+  nodeSelector:
+    kubernetes.azure.com/agentpool: agentpool
+  tolerations: []
+
+  persistence:
+    enabled: true
+    size: 20Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# Disable components not used in single-binary mode.
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+
+# Gateway (nginx proxy) for unified push/query endpoint.
+gateway:
+  enabled: true
+  replicas: 1
+  nodeSelector:
+    kubernetes.azure.com/agentpool: agentpool
+
+# Disable Minio (using filesystem storage).
+minio:
+  enabled: false
+
+# Allow Alloy to push logs via the gateway.
+# NetworkPolicy: allow monitoring namespace → loki on 3100 (handled by intra-monitoring policy).

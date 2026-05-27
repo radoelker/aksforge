@@ -1,0 +1,51 @@
+# KEDA — Helm values
+# Chart: kedacore/keda
+# Pinned version: 2.16.0
+#
+# Per architecture decision: KEDA runs on the spot node pool (userpool).
+# App pods (which KEDA scales) also run on spot with matching toleration.
+
+# Spot node pool targeting.
+nodeSelector:
+  kubernetes.azure.com/agentpool: userpool
+
+tolerations:
+  - key: "kubernetes.azure.com/scalesetpriority"
+    operator: "Equal"
+    value: "spot"
+    effect: "NoSchedule"
+
+# Same for metricsServer and webhooks.
+metricsServer:
+  nodeSelector:
+    kubernetes.azure.com/agentpool: userpool
+  tolerations:
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+webhooks:
+  nodeSelector:
+    kubernetes.azure.com/agentpool: userpool
+  tolerations:
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+resources:
+  operator:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  metricServer:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

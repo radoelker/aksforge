@@ -1,0 +1,35 @@
+---
+# ClusterIssuer — Let's Encrypt production.
+# Applied after cert-manager is Running and its webhook is ready.
+# Uses HTTP-01 challenge via the NGINX Ingress Controller.
+# Replace the email address before applying.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@ironlabs.online     # ← change to a monitored address
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx
+---
+# Staging issuer — use this for testing to avoid LE rate limits.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: admin@ironlabs.online
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx

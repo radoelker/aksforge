@@ -1,0 +1,62 @@
+# ingress-nginx — Helm values
+# Chart: ingress-nginx/ingress-nginx
+# Pinned version: 4.12.0
+#
+# One controller, one Azure public IP — serves both staging and production hostnames.
+# IngressClass name: nginx
+
+controller:
+  replicaCount: 2
+
+  # Fixed node pool only — ingress controller must not land on spot.
+  nodeSelector:
+    kubernetes.azure.com/agentpool: agentpool
+
+  tolerations: []
+
+  # Request a static Azure public IP by annotating the LoadBalancer Service.
+  # Leave loadBalancerIP empty — Azure assigns one. After first deploy, retrieve
+  # the assigned IP with:
+  #   kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  # Then create the DNS A-record in az.ironlabs.online pointing to that IP (Step 6).
+  service:
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: /healthz
+
+  # Enable Prometheus metrics scraping.
+  metrics:
+    enabled: true
+    port: 10254
+    serviceMonitor:
+      enabled: false   # enabled in Step 13 once kube-prometheus-stack is installed
+
+  # Pod Disruption Budget — keep at least one controller pod up during node drains.
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Configmap options — enable real-IP from Azure LB.
+  config:
+    use-forwarded-headers: "true"
+    compute-full-forwarded-for: "true"
+    use-proxy-protocol: "false"
+
+  # Affinity — spread replicas across availability zones.
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: topology.kubernetes.io/zone
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: controller

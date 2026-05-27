@@ -1,0 +1,23 @@
+---
+# Default deny-all ingress for staging.
+# All allowed traffic is carved out by explicit allow policies below.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: staging
+spec:
+  podSelector: {}        # selects ALL pods in the namespace
+  policyTypes:
+    - Ingress
+---
+# Default deny-all ingress for production.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: production
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress

@@ -1,0 +1,34 @@
+# Grafana Alloy — Helm values
+# Chart: grafana/alloy
+# Pinned version: 0.11.0
+# Namespace: monitoring
+#
+# Alloy replaced Grafana Agent. Deployed as a DaemonSet so every node
+# (system + spot) ships logs to Loki and forwards metrics to Prometheus.
+# Must tolerate the spot taint.
+
+alloy:
+  configMap:
+    # Alloy configuration is stored in a ConfigMap.
+    # The content is defined in alloy-config.yaml (applied separately).
+    create: false
+    name: alloy-config
+    key: config.alloy
+
+controller:
+  type: daemonset
+
+  tolerations:
+    # Must run on spot nodes too — that's where app pods live.
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
