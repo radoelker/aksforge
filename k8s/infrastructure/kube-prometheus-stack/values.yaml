@@ -1,0 +1,116 @@
+# kube-prometheus-stack — Helm values
+# Chart: prometheus-community/kube-prometheus-stack
+# Pinned version: 69.2.0
+# Namespace: monitoring
+#
+# All stateful components (Prometheus, Alertmanager) are pinned to the
+# fixed node pool to prevent PVC detach issues during spot eviction.
+
+defaultRules:
+  create: true
+
+# --- Prometheus ---
+prometheus:
+  prometheusSpec:
+    replicas: 1
+    retention: 15d
+    retentionSize: "8GB"
+
+    nodeSelector:
+      kubernetes.azure.com/agentpool: agentpool
+    tolerations: []
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+    # Scrape all PodMonitor and ServiceMonitor resources across all namespaces.
+    podMonitorNamespaceSelector: {}
+    podMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    serviceMonitorSelector: {}
+    ruleNamespaceSelector: {}
+
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+# --- Alertmanager ---
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+    nodeSelector:
+      kubernetes.azure.com/agentpool: agentpool
+    tolerations: []
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+# --- Grafana ---
+grafana:
+  enabled: true
+  replicas: 1
+
+  nodeSelector:
+    kubernetes.azure.com/agentpool: agentpool
+  tolerations: []
+
+  persistence:
+    enabled: true
+    size: 5Gi
+
+  # Admin password sourced from Key Vault via ESO (Step 3).
+  # Until ESO is wired, set via --set grafana.adminPassword on first install.
+  adminPassword: ""   # overridden at install time by bootstrap.sh
+
+  ingress:
+    enabled: false   # enabled in Step 6
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Pre-configure Loki datasource (Loki installed separately).
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki-gateway.monitoring.svc.cluster.local
+      access: proxy
+      isDefault: false
+
+# --- Node Exporter ---
+prometheus-node-exporter:
+  tolerations:
+    # Node exporter is a DaemonSet — must tolerate spot taint to run on all nodes.
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+
+# --- kube-state-metrics ---
+kube-state-metrics:
+  nodeSelector:
+    kubernetes.azure.com/agentpool: agentpool

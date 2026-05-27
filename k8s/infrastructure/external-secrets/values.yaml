@@ -1,0 +1,42 @@
+# external-secrets-operator — Helm values
+# Chart: external-secrets/external-secrets
+# Pinned version: 0.10.4
+#
+# Auth strategy: Azure Workload Identity
+# A dedicated user-assigned managed identity (eso-mi) is created by bootstrap.sh,
+# assigned Key Vault Secrets User role, and bound to this service account via
+# a FederatedIdentityCredential. The client ID is injected by bootstrap.sh via
+# `helm upgrade --set serviceAccount.annotations`.
+
+replicaCount: 2
+
+image:
+  pullPolicy: IfNotPresent
+
+# Run ESO operator on the fixed system node pool (agentpool).
+# Spot eviction of the ESO controller would break secret sync for all namespaces.
+nodeSelector:
+  kubernetes.azure.com/agentpool: agentpool
+
+tolerations: []
+
+# ESO service account — annotated with the ESO managed-identity client ID.
+# The annotation value is injected by bootstrap.sh at install time.
+serviceAccount:
+  create: true
+  name: "external-secrets-sa"
+  annotations: {}   # set by bootstrap.sh: azure.workload.identity/client-id=<ESO_MI_CLIENT_ID>
+
+# Enable Azure Workload Identity webhook label injection on the ESO pod.
+podLabels:
+  azure.workload.identity/use: "true"
+
+webhook:
+  replicaCount: 2
+  nodeSelector:
+    kubernetes.azure.com/agentpool: agentpool
+
+certController:
+  replicaCount: 2
+  nodeSelector:
+    kubernetes.azure.com/agentpool: agentpool
