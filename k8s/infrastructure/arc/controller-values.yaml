@@ -1,0 +1,32 @@
+# Actions Runner Controller (ARC) — Helm values
+# Chart: oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller
+# Pinned version: 0.10.1
+#
+# Auth: GitHub App (OIDC federated identity from AKS).
+# Controller runs on the spot node pool to keep cost low.
+# Runner pods also target the spot pool (configured in the RunnerScaleSet resource).
+#
+# Prerequisites (manual, one-time):
+#   1. Create a GitHub App in your org with Actions: Read & Write permissions.
+#   2. Note the App ID and generate a private key.
+#   3. Store private key in Key Vault as "github-app-private-key".
+#   4. Store App ID in Key Vault as "github-app-id".
+#   These are synced to the arc namespace by ESO (Step 3).
+
+# ARC controller — spot pool.
+nodeSelector:
+  kubernetes.azure.com/agentpool: userpool
+
+tolerations:
+  - key: "kubernetes.azure.com/scalesetpriority"
+    operator: "Equal"
+    value: "spot"
+    effect: "NoSchedule"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

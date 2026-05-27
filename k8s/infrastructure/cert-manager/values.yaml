@@ -1,0 +1,35 @@
+# cert-manager — Helm values
+# Chart: jetstack/cert-manager
+# Pinned version: v1.16.2
+
+# Install CRDs as part of the Helm release (avoids separate kubectl apply step).
+crds:
+  enabled: true
+
+replicaCount: 2
+
+# Fixed node pool — cert-manager must not land on spot to avoid renewal failures
+# during spot eviction windows.
+nodeSelector:
+  kubernetes.azure.com/agentpool: agentpool
+
+tolerations: []
+
+webhook:
+  replicaCount: 2
+  nodeSelector:
+    kubernetes.azure.com/agentpool: agentpool
+
+cainjector:
+  replicaCount: 2
+  nodeSelector:
+    kubernetes.azure.com/agentpool: agentpool
+
+# Resource limits — conservative, cert-manager is not CPU-intensive.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi

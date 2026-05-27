@@ -1,0 +1,41 @@
+# KEDA HTTP Add-on — Helm values
+# Chart: kedacore/keda-add-ons-http
+# Pinned version: 0.9.1
+#
+# Must be installed after KEDA core is Running.
+# Installs: interceptor proxy, external scaler, operator.
+
+# Spot node pool (same as KEDA core — they're tightly coupled).
+nodeSelector:
+  kubernetes.azure.com/agentpool: userpool
+
+tolerations:
+  - key: "kubernetes.azure.com/scalesetpriority"
+    operator: "Equal"
+    value: "spot"
+    effect: "NoSchedule"
+
+interceptor:
+  nodeSelector:
+    kubernetes.azure.com/agentpool: userpool
+  tolerations:
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+scaler:
+  nodeSelector:
+    kubernetes.azure.com/agentpool: userpool
+  tolerations:
+    - key: "kubernetes.azure.com/scalesetpriority"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"

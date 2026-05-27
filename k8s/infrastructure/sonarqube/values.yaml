@@ -1,0 +1,72 @@
+# SonarQube — Helm values
+# Chart: sonarqube/sonarqube
+# Pinned version: 10.8.0
+# Namespace: sonarqube
+#
+# Runs on the fixed node pool — SonarQube has a PVC for analysis data and
+# the bundled PostgreSQL has its own PVC. Spot eviction would corrupt both.
+
+# Fixed node pool.
+nodeSelector:
+  kubernetes.azure.com/agentpool: agentpool
+
+tolerations: []
+
+# SonarQube edition — Community is free and supports most CI quality gates.
+#edition: "community"
+community:
+  enabled: true
+
+
+# --- PostgreSQL (bundled) ---
+postgresql:
+  enabled: true
+  nodeSelector:
+    kubernetes.azure.com/agentpool: agentpool
+  persistence:
+    enabled: true
+    size: 10Gi
+
+# --- SonarQube PVC ---
+persistence:
+  enabled: true
+  size: 10Gi
+
+# Admin credentials bootstrapped from Key Vault via ESO (Step 3).
+# Secret key: sonarqube-admin-password
+# The bootstrap.sh sets this via --set sonarqube.account.adminPassword until ESO is ready.
+account:
+  adminPasswordSecretName: ""   # set to "sonarqube-admin-secret" after ESO is wired
+
+# Monitoring endpoint protection.
+# Used by Prometheus to scrape /api/monitoring/metrics.
+# Store the actual value in Key Vault as "sonarqube-monitoring-passcode".
+monitoringPasscode: "define_it_at_install"   # overridden at install time via --set
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+
+# JVM options for ARM64 — no special flags needed for OpenJDK on ARM.
+jvmOpts: ""
+
+# Expose SonarQube UI via NGINX Ingress (Step 6).
+ingress:
+  enabled: false   # enabled in Step 6
+  hosts:
+    - name: sonarqube.az.ironlabs.online
+      path: /
+
+# Liveness/readiness — SonarQube is slow to start.
+livenessProbe:
+  initialDelaySeconds: 120
+  periodSeconds: 30
+
+readinessProbe:
+  initialDelaySeconds: 120
+  periodSeconds: 30
+  failureThreshold: 10
