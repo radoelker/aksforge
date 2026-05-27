@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend-ingress
+  namespace: staging
+  annotations:
+    # Uses letsencrypt-staging issuer — avoids rate limits while testing TLS wiring.
+    # Switch to letsencrypt-production once cert provisioning is confirmed working.
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - frontend.staging.20.85.194.20.sslip.io
+      secretName: frontend-staging-tls
+  rules:
+    - host: frontend.staging.20.85.194.20.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                # Service name defined in k8s/apps/frontend/base/service.yaml (Step 8)
+                name: frontend
+                port:
+                  number: 3000
