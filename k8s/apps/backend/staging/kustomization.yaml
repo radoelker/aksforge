@@ -2,11 +2,12 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: staging
 resources:
-  - ../../base
-  - deployment.yaml
-  - ingress.yaml
-  - interceptorroute.yaml
-  - scaledobject.yaml
+- ../../base
+- deployment.yaml
+- ingress.yaml
+- interceptorroute.yaml
+- scaledobject.yaml
 images:
-  - name: acr2poiclyh4krxy.azurecr.io/expensy-backend
-    newTag: staging-latest   # CI pipeline updates this value on every staging deploy
+- name: acr2poiclyh4krxy.azurecr.io/expensy-backend
+  newName: acr2poiclyh4krxy.azurecr.io/expensy-backend
+  newTag: 168c0b8
