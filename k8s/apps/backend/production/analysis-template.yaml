@@ -5,29 +5,31 @@ metadata:
   namespace: production
 spec:
   metrics:
-    - name: error-rate
-      # Fail if error rate >= 1% over 2-minute window
-      successCondition: result < 0.01
-      failureLimit: 1
-      interval: 30s
-      count: 10   # 10 measurements × 30s = 5 min stabilisation window
-      provider:
-        prometheus:
-          address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
-          query: |
-            sum(rate(http_errors_total{namespace="production"}[2m]))
+  - name: error-rate
+    count: 10
+    failureLimit: 1
+    interval: 30s
+    successCondition: result < 0.01
+    provider:
+      prometheus:
+        address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+        query: |
+          scalar(
+            sum(rate(http_errors_total{namespace="production"}[2m]) or vector(0))
             /
-            sum(rate(http_requests_total{namespace="production"}[2m]))
-
-    - name: p99-latency
-      # Fail if p99 latency >= 500ms
-      successCondition: result < 0.5
-      failureLimit: 1
-      interval: 30s
-      count: 10
-      provider:
-        prometheus:
-          address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
-          query: |
+            (sum(rate(http_requests_total{namespace="production"}[2m])) > 0 or vector(1))
+          )
+  - name: p99-latency
+    count: 10
+    failureLimit: 1
+    interval: 30s
+    successCondition: result < 0.5
+    provider:
+      prometheus:
+        address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+        query: |
+          scalar(
             histogram_quantile(0.99,
-              rate(http_request_duration_seconds_bucket{namespace="production"}[2m]))
+              sum(rate(http_request_duration_seconds_bucket{namespace="production"}[2m])) by (le))
+            or vector(0)
+          )
