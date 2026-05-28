@@ -20,7 +20,7 @@ env:
 jobs:
   build-and-deploy:
     name: Build, Scan & Deploy to Staging
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm64
     defaults:
       run:
         working-directory: expensy_frontend
