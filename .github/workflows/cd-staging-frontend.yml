@@ -134,6 +134,7 @@ jobs:
         run: |
          git config user.email "github-actions@github.com"
          git config user.name  "GitHub Actions"
+         git stash
          git pull origin staging --rebase
          git add k8s/apps/frontend/staging/kustomization.yaml
          git commit -m "ci: update frontend staging image to ${{ steps.tags.outputs.short_sha }}"
