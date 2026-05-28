@@ -2,6 +2,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: backend
+  labels:
+    app: expensy-backend
 spec:
   selector:
     app: backend
