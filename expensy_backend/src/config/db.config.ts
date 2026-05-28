@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import client from 'prom-client';
-import { logger } from './logger';
+import { logger } from '../logger';
 
 const mongoConnectionGauge = new client.Gauge({
   name: 'mongo_connection_status',

@@ -5,8 +5,10 @@
   "main": "index.js",
   "scripts": {
     "start": "npm run build && node dist/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc"
+    "build": "tsc",
+    "lint": "eslint src/",
+    "test": "jest",
+    "test:coverage": "jest --coverage"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +28,9 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^20.14.10",
     "@types/supertest": "^7.2.0",
+    "@typescript-eslint/eslint-plugin": "^8.60.0",
+    "@typescript-eslint/parser": "^8.60.0",
+    "eslint": "^10.4.0",
     "jest": "^30.4.2",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.11",
