@@ -15,6 +15,7 @@ prometheus:
     replicas: 1
     retention: 15d
     retentionSize: "8GB"
+    #enableRemoteWriteReceiver: true
 
     nodeSelector:
       kubernetes.azure.com/agentpool: agentpool
