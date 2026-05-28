@@ -5,7 +5,6 @@ resources:
   - ../base
   - rollout.yaml
   - service-canary.yaml
-  - ingress.yaml
   - interceptorroute.yaml
   - scaledobject.yaml
 images:

@@ -20,3 +20,6 @@ spec:
       selfHeal: false # don't override manual rollback interventions
     syncOptions:
       - CreateNamespace=false
+      - RespectIgnoreDifferences=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true      
