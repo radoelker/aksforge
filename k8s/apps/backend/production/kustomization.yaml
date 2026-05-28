@@ -2,13 +2,13 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: production
 resources:
-- ../base
-- rollout.yaml
-- service-canary.yaml
-- analysis-template.yaml
-- ingress.yaml
-- interceptorroute.yaml
-- scaledobject.yaml
+  - ../base
+  - rollout.yaml
+  - service-canary.yaml
+  - analysis-template.yaml
+  - interceptorroute.yaml
+  - scaledobject.yaml
+
 images:
 - name: acr2poiclyh4krxy.azurecr.io/expensy-backend
   newName: acr2poiclyh4krxy.azurecr.io/expensy-backend

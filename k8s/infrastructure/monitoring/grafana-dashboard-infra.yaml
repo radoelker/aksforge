@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-infra
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  infra-dashboard.json: |
+    {
+      "title": "Expensy — Infrastructure",
+      "uid": "expensy-infra",
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "CPU Usage by Node",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate(node_cpu_seconds_total{mode!=\"idle\"}[2m])) by (instance)",
+              "legendFormat": "{{ instance }}"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Memory Usage by Node (bytes)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
+              "legendFormat": "{{ instance }}"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "CPU Request Utilisation by Namespace (%)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"staging|production\"}[2m])) by (namespace) / sum(kube_pod_container_resource_requests{resource=\"cpu\", namespace=~\"staging|production\"}) by (namespace) * 100",
+              "legendFormat": "{{ namespace }}"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Memory Usage by Namespace (bytes)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{namespace=~\"staging|production\", container!=\"\"}) by (namespace)",
+              "legendFormat": "{{ namespace }}"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Node Count",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 16, "w": 6, "h": 4 },
+          "targets": [
+            {
+              "expr": "count(kube_node_info)",
+              "legendFormat": "Nodes"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "PVC Usage (%)",
+          "type": "timeseries",
+          "gridPos": { "x": 6, "y": 16, "w": 18, "h": 4 },
+          "targets": [
+            {
+              "expr": "kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes * 100",
+              "legendFormat": "{{ persistentvolumeclaim }}"
+            }
+          ]
+        }
+      ]
+    }
