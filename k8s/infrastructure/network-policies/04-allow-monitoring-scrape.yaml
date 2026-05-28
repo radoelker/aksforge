@@ -1,7 +1,3 @@
----
-# Allow Prometheus (in monitoring namespace) to scrape pods in staging
-# on ports 8080 (app metrics / /metrics endpoint) and 9090 (internal Prometheus federation).
-# kube-prometheus-stack PodMonitors and ServiceMonitors rely on this.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -9,20 +5,17 @@ metadata:
   namespace: staging
 spec:
   podSelector: {}
-  policyTypes:
-    - Ingress
   ingress:
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
       ports:
-        - protocol: TCP
-          port: 8080
-        - protocol: TCP
-          port: 9090
+        - port: 8080
+        - port: 8706   # backend /metrics
+        - port: 9090
+        - port: 3000   # frontend
 ---
-# Same for production.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -30,29 +23,13 @@ metadata:
   namespace: production
 spec:
   podSelector: {}
-  policyTypes:
-    - Ingress
   ingress:
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
       ports:
-        - protocol: TCP
-          port: 8080
-        - protocol: TCP
-          port: 9090
----
-# Allow monitoring to scrape its own components (Prometheus → Alertmanager, etc.)
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-intra-monitoring
-  namespace: monitoring
-spec:
-  podSelector: {}
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - podSelector: {}
+        - port: 8080
+        - port: 8706   # backend /metrics
+        - port: 9090
+        - port: 3000   # frontend
