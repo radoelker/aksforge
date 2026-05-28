@@ -1,11 +1,12 @@
 import Expense from '../models/expense.model';
 import redis from '../config/redis';
+import { logger } from './logger';
 
 export class ExpenseService {
   async getAllExpenses() {
     const cachedExpenses = await redis.get('expenses');
     if (cachedExpenses) {
-        console.log('Cache hit');
+      logger.info('db_read', { route: 'cache', error_message: null });
       return JSON.parse(cachedExpenses);
     }
 

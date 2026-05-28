@@ -1,0 +1,16 @@
+apiVersion: http.keda.sh/v1beta1
+kind: InterceptorRoute
+metadata:
+  name: backend
+  namespace: staging
+spec:
+  target:
+    service: backend
+    port: 8706
+  rules:
+    - hosts:
+        - backend.staging.20.85.194.20.sslip.io
+  scalingMetric:
+    concurrency:
+      targetValue: 5
+ 

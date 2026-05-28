@@ -1,0 +1,16 @@
+apiVersion: http.keda.sh/v1beta1
+kind: InterceptorRoute
+metadata:
+  name: frontend
+  namespace: production
+spec:
+  target:
+    service: frontend
+    port: 3000
+  rules:
+    - hosts:
+        - frontend.prod.azure.ironlabs.online
+  scalingMetric:
+    concurrency:
+      targetValue: 50
+ 

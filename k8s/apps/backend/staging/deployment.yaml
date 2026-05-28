@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      nodeSelector:
+        kubernetes.azure.com/scalesetpriority: spot
+      tolerations:
+        - key: kubernetes.azure.com/scalesetpriority
+          operator: Equal
+          value: spot
+          effect: NoSchedule
+      containers:
+        - name: backend
+          image: acr2poiclyh4krxy.azurecr.io/expensy-backend:staging-latest
+          ports:
+            - containerPort: 8706
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "8706"
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: cosmos-secret
+                  key: MONGODB_URI
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /api/expenses
+              port: 8706
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/expenses
+              port: 8706
+            initialDelaySeconds: 20
+            periodSeconds: 10

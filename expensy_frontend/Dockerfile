@@ -1,42 +1,60 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.7
+# Multi-stage, multi-arch Next.js build → distroless runtime
+# Target platforms: linux/amd64, linux/arm64
 
-ARG NODE_VERSION=18
-ARG NEXT_PUBLIC_API_URL=http://localhost:8706
+# ─────────────────────────────────────────
+# Stage 1: install dependencies
+# ─────────────────────────────────────────
+FROM node:20-alpine AS deps
 
-FROM node:${NODE_VERSION}-alpine AS base
 WORKDIR /app
 
-FROM base AS deps
-COPY package*.json ./
-RUN npm ci
+# Copy lockfile + manifests only — maximises layer cache reuse
+COPY package.json package-lock.json* ./
 
-FROM base AS builder
+# Install all deps (dev + prod) needed for the build
+RUN npm ci --frozen-lockfile
+
+# ─────────────────────────────────────────
+# Stage 2: build
+# ─────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
+ARG NEXT_PUBLIC_API_URL=http://localhost:8706
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
+# next.config.mjs already has output: 'standalone'
 RUN npm run build
 
-FROM node:${NODE_VERSION}-alpine AS runner
+# ─────────────────────────────────────────
+# Stage 3: runtime — distroless (non-root)
+# ─────────────────────────────────────────
+FROM gcr.io/distroless/nodejs20-debian12:nonroot AS runner
+
 WORKDIR /app
+
+# distroless:nonroot runs as UID 65532 — chown at copy time, zero runtime overhead
+# standalone output is a self-contained server with its own trimmed node_modules
+COPY --from=builder --chown=65532:65532 /app/.next/standalone ./
+
+# Static assets must sit inside the standalone tree at this exact path
+COPY --from=builder --chown=65532:65532 /app/.next/static ./.next/static
+
+# Public folder is served by Next.js directly
+COPY --from=builder --chown=65532:65532 /app/public ./public
 
 ENV NODE_ENV=production
 ENV PORT=3000
+# Hostname binding required inside Kubernetes — 0.0.0.0 exposes to the pod network
 ENV HOSTNAME=0.0.0.0
 
-RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs
-
-COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
-
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/next.config.mjs ./next.config.mjs
-
-RUN chown -R nextjs:nodejs /app
-
-USER nextjs
 
 EXPOSE 3000
 
-CMD ["npx", "next", "start", "--hostname", "0.0.0.0", "-p", "3000"]
+# distroless ENTRYPOINT is already `node`; CMD supplies the script path
+CMD ["server.js"]
