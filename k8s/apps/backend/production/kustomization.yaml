@@ -2,13 +2,14 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: production
 resources:
-  - ../base
-  - rollout.yaml
-  - service-canary.yaml
-  - analysis-template.yaml
-  - ingress.yaml
-  - interceptorroute.yaml
-  - scaledobject.yaml
+- ../base
+- rollout.yaml
+- service-canary.yaml
+- analysis-template.yaml
+- ingress.yaml
+- interceptorroute.yaml
+- scaledobject.yaml
 images:
-  - name: acr2poiclyh4krxy.azurecr.io/expensy-backend
-    newTag: latest   # CI pipeline updates this to <git-sha> on every production deploy
+- name: acr2poiclyh4krxy.azurecr.io/expensy-backend
+  newName: acr2poiclyh4krxy.azurecr.io/expensy-backend
+  newTag: 6e79e67
