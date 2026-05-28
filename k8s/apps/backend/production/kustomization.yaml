@@ -8,6 +8,8 @@ resources:
   - analysis-template.yaml
   - interceptorroute.yaml
   - scaledobject.yaml
+
 images:
-  - name: acr2poiclyh4krxy.azurecr.io/expensy-backend
-    newTag: latest   # CI pipeline updates this to <git-sha> on every production deploy
+- name: acr2poiclyh4krxy.azurecr.io/expensy-backend
+  newName: acr2poiclyh4krxy.azurecr.io/expensy-backend
+  newTag: "9342866"
