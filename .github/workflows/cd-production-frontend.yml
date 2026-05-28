@@ -78,4 +78,5 @@ jobs:
           git add k8s/apps/frontend/production/kustomization.yaml
           git diff-index --quiet HEAD || \
             git commit -m "chore: update frontend production image to ${{ steps.tag.outputs.sha }} [skip ci]"
+          git pull --rebase origin main  
           git push origin main
