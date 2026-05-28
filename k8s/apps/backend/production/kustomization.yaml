@@ -12,4 +12,4 @@ resources:
 images:
 - name: acr2poiclyh4krxy.azurecr.io/expensy-backend
   newName: acr2poiclyh4krxy.azurecr.io/expensy-backend
-  newTag: 5b26e94
+  newTag: 9a953c0
