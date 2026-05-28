@@ -12,7 +12,7 @@ WORKDIR /app
 # Copy lockfile + manifests only — maximises layer cache reuse
 COPY package.json package-lock.json* ./
 
-# Install all deps (dev + prod) needed for the build
+# Install all deps (dev + prod) needed for the build / fails if it is run on amd64
 RUN npm ci --frozen-lockfile --legacy-peer-deps
 
 # ─────────────────────────────────────────
