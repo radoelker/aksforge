@@ -148,6 +148,7 @@ export default function Component() {
                 <SelectItem value="Transportation">Transportation</SelectItem>
                 <SelectItem value="Utilities">Utilities</SelectItem>
                 <SelectItem value="Entertainment">Entertainment</SelectItem>
+                <SelectItem value="Vacation">Vacation</SelectItem>                
                 <SelectItem value="Other">Other</SelectItem>
               </SelectContent>
             </Select>
