@@ -49,5 +49,5 @@ ENV PORT=8706
 EXPOSE 8706
 
 # distroless ENTRYPOINT is already `node`
-# Adjust dist/index.js if your tsconfig outDir or entry point differs
-CMD ["dist/index.js"]
+# Adjust dist/server.js if your tsconfig outDir or entry point differs
+CMD ["dist/server.js"]
