@@ -1,0 +1,81 @@
+name: CD — Production Frontend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'expensy_frontend/**'
+      - 'k8s/apps/frontend/production/**'
+      - 'k8s/apps/frontend/base/**'
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set image tag
+        id: tag
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: acr2poiclyh4krxy.azurecr.io
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./expensy_frontend
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            NODE_OPTIONS=--jitless
+            NEXT_PUBLIC_API_URL=https://backend.prod.azure.ironlabs.online
+          tags: |
+            acr2poiclyh4krxy.azurecr.io/expensy-frontend:${{ steps.tag.outputs.sha }}
+            acr2poiclyh4krxy.azurecr.io/expensy-frontend:latest
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: acr2poiclyh4krxy.azurecr.io/expensy-frontend:${{ steps.tag.outputs.sha }}
+          format: table
+          exit-code: '0'
+          severity: CRITICAL,HIGH
+
+      - name: Install Kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Update production kustomization
+        working-directory: k8s/apps/frontend/production
+        run: |
+          kustomize edit set image \
+            acr2poiclyh4krxy.azurecr.io/expensy-frontend=acr2poiclyh4krxy.azurecr.io/expensy-frontend:${{ steps.tag.outputs.sha }}
+
+      - name: Commit and push updated kustomization
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/apps/frontend/production/kustomization.yaml
+          git diff-index --quiet HEAD || \
+            git commit -m "chore: update frontend production image to ${{ steps.tag.outputs.sha }} [skip ci]"
+          git push origin main
