@@ -70,10 +70,15 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           allow-no-subscriptions: true
 
+        #  az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        #  az acr login --name acr2poiclyh4krxy
       - name: ACR login
         run: |
-          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          az acr login --name acr2poiclyh4krxy
+          az acr get-login-password \
+            --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }} \
+          | docker login acr2poiclyh4krxy.azurecr.io \
+              --username 00000000-0000-0000-0000-000000000000 \
+              --password-stdin
         working-directory: .
 
       # ── Trivy scan — build amd64 locally first, scan, then push multi-arch
