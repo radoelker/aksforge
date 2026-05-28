@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: frontend-production
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/radoelker/aksforge
+    targetRevision: main
+    path: k8s/apps/frontend/production
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+  syncPolicy:
+    automated:
+      prune: false    # safer for production — no accidental deletions
+      selfHeal: false # don't override manual rollback interventions
+    syncOptions:
+      - CreateNamespace=false
