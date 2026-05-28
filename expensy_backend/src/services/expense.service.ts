@@ -1,6 +1,6 @@
 import Expense from '../models/expense.model';
 import redis from '../config/redis';
-import { logger } from './logger';
+import { logger } from '../logger';
 
 export class ExpenseService {
   async getAllExpenses() {
