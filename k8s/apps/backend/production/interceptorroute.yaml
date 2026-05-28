@@ -1,0 +1,16 @@
+apiVersion: http.keda.sh/v1beta1
+kind: InterceptorRoute
+metadata:
+  name: backend
+  namespace: production
+spec:
+  target:
+    service: backend
+    port: 8706
+  rules:
+    - hosts:
+        - backend.prod.azure.ironlabs.online
+  scalingMetric:
+    concurrency:
+      targetValue: 50
+ 

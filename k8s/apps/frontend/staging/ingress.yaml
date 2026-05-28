@@ -1,11 +1,12 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: frontend-ingress
-  namespace: staging
+  name: frontend-staging-ingress
+  # Ingress must be in the keda namespace because the interceptor proxy
+  # service (keda-add-ons-http-interceptor-proxy) lives there.
+  # Kubernetes Ingress backends must be in the same namespace as the Ingress.
+  namespace: keda
   annotations:
-    # Uses letsencrypt-staging issuer — avoids rate limits while testing TLS wiring.
-    # Switch to letsencrypt-production once cert provisioning is confirmed working.
     cert-manager.io/cluster-issuer: letsencrypt-staging
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
 spec:
@@ -22,7 +23,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                # Service name defined in k8s/apps/frontend/base/service.yaml (Step 8)
-                name: frontend
+                name: keda-add-ons-http-interceptor-proxy
                 port:
-                  number: 3000
+                  number: 8080
