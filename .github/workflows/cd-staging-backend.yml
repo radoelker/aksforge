@@ -130,14 +130,12 @@ jobs:
         run: |
           git config user.email "github-actions@github.com"
           git config user.name  "GitHub Actions"
-          git pull origin staging --rebase
           git add k8s/apps/backend/staging/kustomization.yaml
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "ci: update backend staging image to ${{ steps.tags.outputs.short_sha }}"
-            git push origin staging
-          fi
+          git stash
+          git pull origin staging --rebase
+          git stash pop
+          git commit -m "ci: update backend staging image to ${{ steps.tags.outputs.short_sha }}"
+          git push origin staging
 
       # ── Step 15: k6 load test ─────────────────────────────────────────────
       # Uncomment after Step 15 deploys the k6 Job manifest.
