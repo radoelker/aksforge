@@ -11,4 +11,4 @@ resources:
 images:
 - name: acr2poiclyh4krxy.azurecr.io/expensy-frontend
   newName: acr2poiclyh4krxy.azurecr.io/expensy-frontend
-  newTag: 9476d47
+  newTag: "9342866"
