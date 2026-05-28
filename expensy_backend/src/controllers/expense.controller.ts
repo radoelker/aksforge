@@ -1,7 +1,7 @@
 
 import { Request, Response } from 'express';
 import { ExpenseService } from '../services/expense.service';
-import { logger } from './logger';
+import { logger } from '../logger';
 
 const expenseService = new ExpenseService();
 
