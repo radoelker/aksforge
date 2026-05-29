@@ -128,14 +128,17 @@ jobs:
       - name: Commit and push updated kustomization
         working-directory: .
         run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 1. Änderungen für den Commit vormerken
           git add k8s/apps/backend/staging/kustomization.yaml
-          git diff-index --quiet HEAD || \
-            git commit -m "chore: update backend staging image to ${{ steps.tag.outputs.sha }} [skip ci]"
-          git pull --rebase origin main
-          git push origin main
-
+          
+          # 2. Nur commiten, wenn es tatsächlich Änderungen gibt
+          git diff-index --quiet HEAD || git commit -m "chore: backend update kustomization [skip ci]"
+          
+          # 3. Änderungen pushen
+          git push origin staging
 
       # ── Step 15: k6 load test ─────────────────────────────────────────────
       # Uncomment after Step 15 deploys the k6 Job manifest.
