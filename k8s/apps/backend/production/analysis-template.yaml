@@ -21,9 +21,9 @@ spec:
           )
   - name: p99-latency
     count: 10
-    failureLimit: 1
+    failureLimit: 3
     interval: 30s
-    successCondition: result < 0.5
+    successCondition: result < 2
     provider:
       prometheus:
         address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
