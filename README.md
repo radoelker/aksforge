@@ -131,7 +131,7 @@ az deployment sub create ...
 
 ### 2 — Bootstrap the AKS cluster
 ```bash
-export SUBSCRIPTION_ID="daf9c53c-7096-4293-9bb1-f7ad8263db1a"
+export SUBSCRIPTION_ID="<subscriptionID>"
 chmod +x scripts/bootstrap-cluster.sh
 ./scripts/bootstrap-cluster.sh
 ```
