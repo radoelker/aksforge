@@ -56,7 +56,7 @@ export function httpMetricsMiddleware(req: Request, res: Response, next: NextFun
         totalHttpRequestsCounter.inc();
         httpRequestDurationHistogram.labels(method, route, statusCode).observe(durationSeconds);
 
-        if (res.statusCode >= 400) {
+        if (res.statusCode >= 500) {
             httpErrorsCounter.labels(method, route, statusCode).inc();
         }
     });
