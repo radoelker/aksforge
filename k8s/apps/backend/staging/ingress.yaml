@@ -1,12 +1,11 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: backend-ingress
-  namespace: staging
+  name: backend-staging-ingress
+  namespace: keda
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-staging
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
-
 spec:
   ingressClassName: nginx
   tls:
@@ -21,6 +20,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: backend
+                name: keda-add-ons-http-interceptor-proxy
                 port:
-                  number: 8706
+                  number: 8080
