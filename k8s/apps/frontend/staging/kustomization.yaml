@@ -4,7 +4,6 @@ namespace: staging
 resources:
   - ../base
   - deployment.yaml
-  - ingress.yaml
   - interceptorroute.yaml
   - scaledobject.yaml
 
