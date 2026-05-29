@@ -192,7 +192,7 @@ export default function Component() {
         <CardContent>
           <div className="grid md:grid-cols-2 gap-8">
             <div>
-              <PiechartcustomChart  data={categoriesData} categoryColors={categoryColors} />
+              <PieChartCustomChart  data={categoriesData} categoryColors={categoryColors} />
             </div>
             <div className="space-y-4">
               {categoriesData.map((category) => (
@@ -212,16 +212,16 @@ export default function Component() {
   )
 }
 
-function PiechartcustomChart({ data, categoryColors, ...props }: { data: { name: string; amount: number }[]; categoryColors: { [key: string]: string } }) {
+function PieChartCustomChart({ data, categoryColors, ...props }: { data: { name: string; amount: number }[]; categoryColors: { [key: string]: string } }) {
   return (
     <div {...props}>
       <ChartContainer
-        config={
-            {
-
-            }
-        }
-
+        config={{
+          amount: {
+            label: "Amount",
+            color: "hsl(var(--primary))",
+          },
+        }}
       >
         <PieChart>
           <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
